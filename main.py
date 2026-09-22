@@ -5,18 +5,21 @@
 1. 從多個國際重要網站的 RSS 抓新聞
 2. 依「跨來源被報導次數」+「來源權重」+「時間新舊」評分排序
 3. 各取科技、財經前 20 條
-4. 組成 HTML Email 寄出
+4. 將標題翻譯成繁體中文，中英對照
+5. 組成 HTML Email 寄出
 """
 
 import re
 import smtplib
 import ssl
+import time
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
 
 import feedparser
+from deep_translator import GoogleTranslator
 
 # ---------- 設定區 ----------
 
@@ -154,7 +157,23 @@ def collect_and_score(feeds):
         })
 
     scored.sort(key=lambda x: x["score"], reverse=True)
-    return scored[:TOP_N]
+    top = scored[:TOP_N]
+    attach_translations(top)
+    return top
+
+
+# ---------- 翻譯 ----------
+
+def attach_translations(items):
+    """幫每一則新聞的標題加上繁體中文翻譯（title_zh）。逐則翻譯失敗時退回原文。"""
+    translator = GoogleTranslator(source="auto", target="zh-TW")
+    for item in items:
+        try:
+            item["title_zh"] = translator.translate(item["title"])
+        except Exception as exc:
+            print(f"[警告] 翻譯失敗，改用原文：{item['title'][:40]}... ({exc})")
+            item["title_zh"] = item["title"]
+        time.sleep(0.3)  # 避免對免費翻譯服務發送過於密集的請求
 
 
 # ---------- Email 組裝與寄送 ----------
@@ -166,12 +185,14 @@ def build_html(tech_news, finance_news) -> str:
         rows = []
         for i, n in enumerate(items, 1):
             sources = "、".join(n["sources"])
+            title_zh = n.get("title_zh", n["title"])
             rows.append(f"""
             <tr>
               <td style="padding:8px 6px;border-bottom:1px solid #eee;vertical-align:top;color:#888;">{i}</td>
               <td style="padding:8px 6px;border-bottom:1px solid #eee;">
-                <a href="{n['link']}" style="color:#1a0dab;text-decoration:none;font-weight:600;">{n['title']}</a>
-                <div style="color:#888;font-size:12px;margin-top:2px;">來源：{sources}</div>
+                <a href="{n['link']}" style="color:#1a0dab;text-decoration:none;font-weight:600;">{title_zh}</a>
+                <div style="color:#555;font-size:12.5px;margin-top:3px;">{n['title']}</div>
+                <div style="color:#999;font-size:12px;margin-top:2px;">來源：{sources}</div>
               </td>
             </tr>""")
         return f"""
