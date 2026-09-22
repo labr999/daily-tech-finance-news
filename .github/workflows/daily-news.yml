@@ -1,0 +1,29 @@
+name: Daily Tech & Finance News
+
+on:
+  schedule:
+    # 01:00 UTC = 09:00 台北時間
+    - cron: '0 1 * * *'
+  workflow_dispatch: {}   # 允許手動在 Actions 頁面點按執行，方便測試
+
+jobs:
+  send-daily-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily news script
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: python main.py
